@@ -1,5 +1,5 @@
 # sd-webui-teacache
-[WIP] SDXL TeaCache for [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
+SDXL TeaCache for [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
 
 TeaCache uses the difference between model inputs across timesteps to determine when to reuse previous outputs. The difference between inputs is used to estimate the difference between model outputs, which is then refined through a polynomial fitted on input-output samples from the target model.
 
