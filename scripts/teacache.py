@@ -102,14 +102,10 @@ class TeaCacheScript(scripts.Script):
         if self.is_img2img:
             total_steps, steps = setup_img2img_steps(p)
             initial_step = total_steps - steps
-            # print(f"DEBUG: img2img initial_step: {initial_step}")
         elif p.is_hr_pass:
             total_steps = getattr(p, "hr_second_pass_steps", 0) or p.steps
             total_steps, steps = setup_img2img_steps(p, total_steps)  # hires fix doesn't reduce steps
             initial_step = total_steps - steps
-            # print(f"DEBUG: hr_pass initial_step: {initial_step}")
-        # else:
-            # print(f"DEBUG: txt2img initial_step: {initial_step}")
         _cache = TeaCacheSession(threshold, max_consecutive, start, end, total_steps, initial_step)
 
         # set infotext
@@ -208,7 +204,6 @@ def patched_forward(
         p = Polynomial([-7.33293101e-02, 5.57968864e+00, -6.85753651e+01, 4.04814722e+02, -8.11904600e+02])  # NoobAI XL vpred v1.0
         # p = Polynomial([-4.46619183e-02,  2.04088614e+00, -1.30308644e+01,  1.01387815e+02, -2.48935677e+02])  # NoobAI XL v1.1
         distance += p(relative_l1_distance(previous, first_block_residual)).item()
-        # print(f"DEBUG: distance: {distance}")
         if distance >= _cache.threshold:
             use_cache = False
     previous = first_block_residual
