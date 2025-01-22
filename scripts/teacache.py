@@ -196,7 +196,7 @@ def patched_forward(
 
             # cache indicator
             if _cache.use_cache:
-                p = Polynomial([-7.33293101e-02, 5.57968864e+00, -6.85753651e+01, 4.04814722e+02, -8.11904600e+02])  # NoobAI XL vpred v1.0
+                p = Polynomial([ 4.72656327e-03,  1.09937816e+00,  4.82785530e+00, -2.93749209e+01, 4.22227031e+01])  # NoobAI XL vpred v1.0
                 # p = Polynomial([-4.46619183e-02,  2.04088614e+00, -1.30308644e+01,  1.01387815e+02, -2.48935677e+02])  # NoobAI XL v1.1
                 _cache.distance += p(relative_l1_distance(_cache.previous, first_block_residual)).item()
                 if _cache.distance >= _cache.threshold:
