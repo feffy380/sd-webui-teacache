@@ -9,6 +9,7 @@ from modules import processing, script_callbacks, scripts
 from modules.sd_samplers_common import setup_img2img_steps
 from modules.ui_components import InputAccordion
 
+
 _cache = None
 
 
@@ -53,7 +54,7 @@ class TeaCacheScript(scripts.Script):
             with gr.Row():
                 max_consecutive = gr.Number(
                     label="Max consecutive cached steps",
-                    minimum=-1, maximum=150, value=-1, step=1,
+                    minimum=0, maximum=150, value=0, step=1,
                 )
                 start = gr.Slider(
                     label="Start",
@@ -64,7 +65,20 @@ class TeaCacheScript(scripts.Script):
                     minimum=0.0, maximum=1.0, value=1.0, step=0.01,
                 )
 
-        return enabled, threshold, max_consecutive, start, end
+        infotext_keys = ["TeaCache threshold", "TeaCache max consecutive", "TeaCache start", "TeaCache end"]
+        self.infotext_fields = [
+            (enabled, lambda d: any(key in d for key in infotext_keys)),
+            (threshold, "TeaCache threshold"),
+            (max_consecutive, "TeaCache max consecutive"),
+            (start, "TeaCache start"),
+            (end, "TeaCache end"),
+        ]
+
+        components = [enabled, threshold, max_consecutive, start, end]
+        for c in components:
+            c.do_not_save_to_config = True
+
+        return components
     
     def process(self, p: processing.StableDiffusionProcessing, *args):
         # patch model forward method
@@ -97,6 +111,15 @@ class TeaCacheScript(scripts.Script):
         # else:
             # print(f"DEBUG: txt2img initial_step: {initial_step}")
         _cache = TeaCacheSession(threshold, max_consecutive, start, end, total_steps, initial_step)
+
+        # set infotext
+        p.extra_generation_params["TeaCache threshold"] = threshold
+        if max_consecutive > 0:
+            p.extra_generation_params["TeaCache max consecutive"] = max_consecutive
+        if start > 0.0:
+            p.extra_generation_params["TeaCache start"] = start
+        if end < 1.0:
+            p.extra_generation_params["TeaCache end"] = end
 
     def postprocess(self, p: processing.StableDiffusionProcessing, processed, *args):
         # restore model, clear cache
@@ -175,7 +198,7 @@ def patched_forward(
             if not (_cache.start < progress <= _cache.end):
                 use_cache = False
             # check max consecutive cache hits
-            if _cache.max_consecutive >= 0 and consecutive_hits >= _cache.max_consecutive:
+            if _cache.max_consecutive > 0 and consecutive_hits >= _cache.max_consecutive:
                 use_cache = False
             # check cached value exists
             if previous is None or residual is None:
