@@ -219,6 +219,7 @@ def patched_forward(
             h = module(h, emb, context)
 
         residual = h - original_h
+        _cache.consecutive_hits = 0
 
     _cache.residual[index] = residual
     _cache.call_index += 1
