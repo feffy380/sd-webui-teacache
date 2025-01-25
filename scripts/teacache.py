@@ -86,6 +86,10 @@ class TeaCacheScript(scripts.Script):
         # patch model forward method
         enabled = args[0]
         if not enabled:
+            # fix model if patch was not reverted (due to exception, oom)
+            unet = p.sd_model.model.diffusion_model
+            if getattr(unet, "_teacache_patched", False):
+                self.postprocess(p)
             return
         unet = p.sd_model.model.diffusion_model
         self.original_forward = unet.forward
@@ -119,7 +123,7 @@ class TeaCacheScript(scripts.Script):
         if end < 1.0:
             p.extra_generation_params["TeaCache end"] = end
 
-    def postprocess(self, p: processing.StableDiffusionProcessing, processed, *args):
+    def postprocess(self, p: processing.StableDiffusionProcessing, *args):
         # restore model, clear cache
         global _cache
         unet = p.sd_model.model.diffusion_model
