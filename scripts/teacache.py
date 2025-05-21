@@ -51,7 +51,7 @@ class TeaCacheScript(scripts.Script):
                 threshold = gr.Slider(
                     label="Cache threshold",
                     info="Higher caches more aggressively.",
-                    minimum=0.0, maximum=1.0, value=0.2, step=0.01,
+                    minimum=0.0, maximum=1.0, value=0.3, step=0.01,
                 )
             with gr.Row():
                 max_consecutive = gr.Number(
@@ -60,7 +60,7 @@ class TeaCacheScript(scripts.Script):
                 )
                 start = gr.Slider(
                     label="Start",
-                    minimum=0.0, maximum=1.0, value=0.0, step=0.01,
+                    minimum=0.0, maximum=1.0, value=0.3, step=0.01,
                 )
                 end = gr.Slider(
                     label="End",
@@ -77,8 +77,6 @@ class TeaCacheScript(scripts.Script):
         ]
 
         components = [enabled, threshold, max_consecutive, start, end]
-        for c in components:
-            c.do_not_save_to_config = True
 
         return components
     
