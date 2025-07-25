@@ -1,7 +1,7 @@
 from typing import Optional
 
 import gradio as gr
-import torch as th
+from modules.sd_hijack_unet import th
 from numpy.polynomial import Polynomial
 from sgm.modules.diffusionmodules.openaimodel import timestep_embedding
 
@@ -90,7 +90,8 @@ class TeaCacheScript(scripts.Script):
                 self.postprocess(p)
             return
         unet = p.sd_model.model.diffusion_model
-        self.original_forward = unet.forward
+        if not self.original_forward:
+            self.original_forward = unet.forward
         unet.forward = patched_forward.__get__(unet)
         unet._teacache_patched = True
 
