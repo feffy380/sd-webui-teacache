@@ -13,6 +13,10 @@ from modules.ui_components import InputAccordion
 _cache = None
 
 
+def relative_l1_distance(prev: torch.Tensor, curr: torch.Tensor):
+    return ((prev - curr).abs().mean() / prev.abs().mean()).item()
+
+
 class TeaCacheSession:
     def __init__(self, threshold: float, max_consecutive: int, start: float, end: float, steps: int, initial_step: int = 1):
         self.threshold = threshold
@@ -23,11 +27,33 @@ class TeaCacheSession:
 
         self.current_step = initial_step
         self.call_index = 0
-        self.residual: list[Optional[torch.Tensor]] = [None]
-        self.previous: Optional[torch.Tensor] = None
+        self.residuals: dict[torch.Tensor] = {}
+        self.previous_fb: Optional[torch.Tensor] = None
         self.distance = 0.0
         self.consecutive_hits = 0
         self.use_cache = True
+
+    def update_condition(self, first_block_residual: torch.Tensor):
+        # check step range
+        progress = self.current_step / self.steps
+        if not (self.start < progress <= self.end):
+            self.use_cache = False
+        # check max consecutive cache hits
+        if self.max_consecutive > 0 and self.consecutive_hits >= self.max_consecutive:
+            self.use_cache = False
+        # check cached value exists
+        if self.previous_fb is None or self.call_index not in self.residuals:
+            self.use_cache = False
+
+        if self.use_cache:
+            p = Polynomial([ 4.72656327e-03,  1.09937816e+00,  4.82785530e+00, -2.93749209e+01, 4.22227031e+01])  # NoobAI XL vpred v1.0
+            # p = Polynomial([-4.46619183e-02,  2.04088614e+00, -1.30308644e+01,  1.01387815e+02, -2.48935677e+02])  # NoobAI XL v1.1
+            self.distance += p(relative_l1_distance(self.previous_fb, first_block_residual)).item()
+            if self.distance >= self.threshold:
+                self.use_cache = False
+                self.distance = 0.0
+            else:
+                self.consecutive_hits += 1
 
     def next_step(self):
         self.current_step += 1
@@ -134,10 +160,6 @@ class TeaCacheScript(scripts.Script):
         _cache = None
 
 
-def relative_l1_distance(prev: torch.Tensor, curr: torch.Tensor):
-    return ((prev - curr).abs().mean() / prev.abs().mean()).item()
-
-
 def patched_forward(
     self,
     x: torch.Tensor,
@@ -156,12 +178,6 @@ def patched_forward(
     """
 
     global _cache
-    index = _cache.call_index
-    # cache multiple model calls in one step
-    if index == len(_cache.residual):
-        _cache.residual.append(None)
-
-    residual = _cache.residual[index]
 
     assert (y is not None) == (
         self.num_classes is not None
@@ -175,42 +191,23 @@ def patched_forward(
         emb = emb + self.label_emb(y)
 
     h = x
-    for id, module in enumerate(self.input_blocks[:2]):
-        if id == 1:
-            original_h = h
-        h = module(h, emb, context)
-        hs.append(h)
 
-        # check cache condition on first model call only
-        if id == 1 and index == 0:  # id=0 is only conv
-            first_block_residual = h - original_h
+    # call first two blocks
+    h = self.input_blocks[0](h, emb, context)
+    hs.append(h)
+    original_h = h
+    h = self.input_blocks[1](h, emb, context)
+    hs.append(h)
 
-            # cache conditions
-            # check step range
-            progress = _cache.current_step / _cache.steps
-            if not (_cache.start < progress <= _cache.end):
-                _cache.use_cache = False
-            # check max consecutive cache hits
-            if _cache.max_consecutive > 0 and _cache.consecutive_hits >= _cache.max_consecutive:
-                _cache.use_cache = False
-            # check cached value exists
-            if _cache.previous is None or residual is None:
-                _cache.use_cache = False
+    # check cache condition
+    if _cache.call_index == 0:
+        first_block_residual = h - original_h
+        _cache.update_condition(first_block_residual)
+        _cache.previous_fb = first_block_residual
 
-            # cache indicator
-            if _cache.use_cache:
-                p = Polynomial([ 4.72656327e-03,  1.09937816e+00,  4.82785530e+00, -2.93749209e+01, 4.22227031e+01])  # NoobAI XL vpred v1.0
-                # p = Polynomial([-4.46619183e-02,  2.04088614e+00, -1.30308644e+01,  1.01387815e+02, -2.48935677e+02])  # NoobAI XL v1.1
-                _cache.distance += p(relative_l1_distance(_cache.previous, first_block_residual)).item()
-                if _cache.distance >= _cache.threshold:
-                    _cache.use_cache = False
-                    _cache.distance = 0.0
-                else:
-                    _cache.consecutive_hits += 1
-            _cache.previous = first_block_residual
-
+    # use cache or call full model
     if _cache.use_cache:
-        h += residual
+        h += _cache.residuals[_cache.call_index]
     else:
         original_h = h
         for module in self.input_blocks[2:]:
@@ -221,10 +218,9 @@ def patched_forward(
             h = th.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
 
-        residual = h - original_h
         _cache.consecutive_hits = 0
+        _cache.residuals[_cache.call_index] = h - original_h
 
-    _cache.residual[index] = residual
     _cache.call_index += 1
 
     h = h.type(x.dtype)
