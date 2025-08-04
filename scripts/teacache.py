@@ -1,14 +1,14 @@
 from typing import Optional
 
 import gradio as gr
-from modules.sd_hijack_unet import th
+import torch
 from numpy.polynomial import Polynomial
 from sgm.modules.diffusionmodules.openaimodel import timestep_embedding
 
 from modules import processing, script_callbacks, scripts
+from modules.sd_hijack_unet import th
 from modules.sd_samplers_common import setup_img2img_steps
 from modules.ui_components import InputAccordion
-
 
 _cache = None
 
@@ -23,8 +23,8 @@ class TeaCacheSession:
 
         self.current_step = initial_step
         self.call_index = 0
-        self.residual: list[Optional[th.Tensor]] = [None]
-        self.previous: Optional[th.Tensor] = None
+        self.residual: list[Optional[torch.Tensor]] = [None]
+        self.previous: Optional[torch.Tensor] = None
         self.distance = 0.0
         self.consecutive_hits = 0
         self.use_cache = True
@@ -134,18 +134,18 @@ class TeaCacheScript(scripts.Script):
         _cache = None
 
 
-def relative_l1_distance(prev: th.Tensor, curr: th.Tensor):
+def relative_l1_distance(prev: torch.Tensor, curr: torch.Tensor):
     return ((prev - curr).abs().mean() / prev.abs().mean()).item()
 
 
 def patched_forward(
     self,
-    x: th.Tensor,
-    timesteps: Optional[th.Tensor] = None,
-    context: Optional[th.Tensor] = None,
-    y: Optional[th.Tensor] = None,
+    x: torch.Tensor,
+    timesteps: Optional[torch.Tensor] = None,
+    context: Optional[torch.Tensor] = None,
+    y: Optional[torch.Tensor] = None,
     **kwargs,
-) -> th.Tensor:
+) -> torch.Tensor:
     """
     Apply the model to an input batch.
     :param x: an [N x C x ...] Tensor of inputs.
