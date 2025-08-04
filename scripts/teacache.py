@@ -48,7 +48,8 @@ class TeaCacheSession:
         if self.use_cache:
             p = Polynomial([ 4.72656327e-03,  1.09937816e+00,  4.82785530e+00, -2.93749209e+01, 4.22227031e+01])  # NoobAI XL vpred v1.0
             # p = Polynomial([-4.46619183e-02,  2.04088614e+00, -1.30308644e+01,  1.01387815e+02, -2.48935677e+02])  # NoobAI XL v1.1
-            self.distance += p(relative_l1_distance(self.previous_fb, first_block_residual)).item()
+            n = min(self.previous_fb.shape[0], first_block_residual.shape[0])
+            self.distance += p(relative_l1_distance(self.previous_fb[:n], first_block_residual[:n])).item()
             if self.distance >= self.threshold:
                 self.use_cache = False
                 self.distance = 0.0
@@ -207,7 +208,7 @@ def patched_forward(
 
     # use cache or call full model
     if _cache.use_cache:
-        h += _cache.residuals[_cache.call_index]
+        h += _cache.residuals[_cache.call_index][:h.shape[0]]
     else:
         original_h = h
         for module in self.input_blocks[2:]:
